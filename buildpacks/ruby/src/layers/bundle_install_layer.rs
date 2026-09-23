@@ -77,7 +77,12 @@ pub(crate) fn call(
     )
     .map_err(RubyBuildpackError::BundleInstallCommandError)?;
 
-    if let Err(error) = fs::remove_dir_all(layer_ref.path().join("cache")) {
+    // Only present when `bundle install` downloaded gems on this build. A layer restored from
+    // cache with an unchanged Gemfile.lock has none, and there is nothing to delete.
+    let gem_cache = layer_ref.path().join("cache");
+    if gem_cache.exists()
+        && let Err(error) = fs::remove_dir_all(&gem_cache)
+    {
         print::sub_bullet(formatdoc! {"
             WARNING: Could not delete Rubygems cache directory
 
