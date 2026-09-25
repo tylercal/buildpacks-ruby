@@ -15,6 +15,7 @@ use cache_diff::CacheDiff;
 use commons::gemfile_lock::ResolvedRubyVersion;
 use commons::layer::diff_migrate::DiffMigrateLayer;
 use fs_err as fs;
+use fs_err::PathExt;
 use fun_run::{self, CommandWithName};
 use indoc::formatdoc;
 use libcnb::data::layer_name;
@@ -78,10 +79,11 @@ pub(crate) fn call(
     .map_err(RubyBuildpackError::BundleInstallCommandError)?;
 
     // Only present when `bundle install` downloaded gems on this build. A layer restored from
-    // cache with an unchanged Gemfile.lock has none, and there is nothing to delete.
+    // cache with an unchanged Gemfile.lock has none, and there is nothing to delete. Warn unless
+    // the directory is confirmed absent, so a failure to check (e.g. permissions) isn't silent.
     let gem_cache = layer_ref.path().join("cache");
-    if gem_cache.exists()
-        && let Err(error) = fs::remove_dir_all(&gem_cache)
+    if let Err(error) = fs::remove_dir_all(&gem_cache)
+        && !matches!(gem_cache.fs_err_try_exists(), Ok(false))
     {
         print::sub_bullet(formatdoc! {"
             WARNING: Could not delete Rubygems cache directory
